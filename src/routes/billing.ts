@@ -11,6 +11,7 @@ function mustGetEnv(name: string) {
   return v;
 }
 
+
 const stripe = new Stripe(mustGetEnv("STRIPE_SECRET_KEY"));
 
 function resolvePriceId(plan: string) {
@@ -50,6 +51,79 @@ router.get("/status", async (req, res) => {
     plan: rows[0].plan ?? undefined,
   });
 });
+
+/**
+ * POST /api/billing/pilot-checkout
+ * body: { plan?: "bronze" | "silver" | "gold" }
+ *
+ * Creates a one-time 99 USD Checkout Session for the pilot.
+ */
+router.post("/pilot-checkout", async (req, res) => {
+  const orgId = req.auth?.organizationId;
+  if (!orgId) return res.status(401).json({ error: "Missing org in token" });
+
+  const plan = (req.body?.plan ?? "gold") as string;
+
+  const appUrl = mustGetEnv("APP_URL");
+
+  // pull org info (same as in /checkout-session)
+  const orgRes = await pool.query(
+    `SELECT id, name, contact_email, stripe_customer_id
+     FROM organizations
+     WHERE id = $1`,
+    [orgId]
+  );
+  if (!orgRes.rows.length) {
+    return res.status(404).json({ error: "Org not found" });
+  }
+
+  const org = orgRes.rows[0];
+
+  // ensure Stripe customer exists
+  let customerId: string | undefined = org.stripe_customer_id ?? undefined;
+
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      name: org.name ?? `Org ${orgId}`,
+      email: org.contact_email ?? undefined,
+      metadata: { organization_id: String(orgId) },
+    });
+
+    customerId = customer.id;
+
+    await pool.query(
+      `UPDATE organizations
+       SET stripe_customer_id = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [customerId, orgId]
+    );
+  }
+
+  // create Checkout Session in PAYMENT mode for the 99 pilot fee
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer: customerId,
+    line_items: [
+      {
+        price: mustGetEnv("STRIPE_PILOT_PRICE_ID"),
+        quantity: 1,
+      },
+    ],
+    success_url: `${appUrl}/settings?pilot=success`,
+    cancel_url: `${appUrl}/settings?pilot=cancel`,
+    client_reference_id: String(orgId),
+   subscription_data: {
+  metadata: {
+    organization_id: String(orgId),
+    plan,
+  },
+},
+  });
+
+  res.json({ url: session.url });
+});
+
+
 
 /**
  * POST /api/billing/checkout-session
@@ -165,13 +239,17 @@ router.post("/change-plan", async (req, res) => {
 
   // load org
   const orgRes = await pool.query(
-    `SELECT id, stripe_customer_id
-     FROM organizations
-     WHERE id = $1`,
+    `SELECT id, stripe_customer_id, price_locked_until FROM organizations WHERE id = $1`,
     [orgId]
   );
 
   if (!orgRes.rows.length) return res.status(404).json({ error: "Org not found" });
+const org = orgRes.rows[0];
+if (org.price_locked_until && new Date(org.price_locked_until) > new Date()) {
+return res.status(400).json({
+error: `Founding Partner pricing is locked until ${new Date( org.price_locked_until ).toISOString().slice(0, 10)}`,
+});
+}
 
   const customerId = orgRes.rows[0].stripe_customer_id;
   if (!customerId) {

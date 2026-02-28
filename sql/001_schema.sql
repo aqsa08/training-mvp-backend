@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS lessons (
   role_level TEXT NOT NULL CHECK (role_level IN ('agent', 'lead', 'supervisor', 'manager', 'executive')),
   day_number INT NOT NULL CHECK (day_number >= 1),
   title TEXT NOT NULL,
-  lesson_text TEXT NOT NULL,          -- short SMS “lesson”
+  lesson_text TEXT NOT NULL,          -- short SMS â€œlessonâ€�
   action_text TEXT NOT NULL,          -- what to do today
   reflection_question TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),

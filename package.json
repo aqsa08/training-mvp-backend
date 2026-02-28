@@ -4,8 +4,8 @@
   "private": true,
   "main": "dist/server.js",
   "scripts": {
-    "dev": "nodemon --watch src --ext ts,tsx --exec tsx src/server.ts",
-    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
     "start": "node dist/server.js",
     "seed:lessons:agent": "npx tsx src/scripts/importLessons.ts data/lessons/agent.json --mode=upsert",
     "seed:lessons:lead": "npx tsx src/scripts/importLessons.ts data/lessons/lead.json --mode=upsert",
@@ -40,6 +40,6 @@
     "@types/stripe": "^8.0.416",
     "nodemon": "^3.1.4",
     "tsx": "^4.16.2",
-    "typescript": "^5.5.4"
+    "typescript": "^5.9.3"
   }
 }
