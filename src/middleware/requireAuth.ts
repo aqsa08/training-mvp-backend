@@ -1,3 +1,4 @@
+// src/middleware/requireAuth.ts
 import { Request, Response, NextFunction } from "express";
 import { verifyAuthToken, AuthTokenPayload } from "../utils/jwt";
 
@@ -11,6 +12,9 @@ declare global {
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.headers["authorization"];
+
+  // 👇 TEMP debug: see which routes are going through requireAuth
+  console.log("requireAuth ->", req.method, req.path, "Authorization:", header);
 
   if (!header) {
     return res.status(401).json({ error: "Missing Authorization header" });
